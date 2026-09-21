@@ -98,4 +98,5 @@ python memory/server.py               # 起记忆服务（MCP / HTTP 双协议�
 
 ## License
 
-MIT
+双许可：上游代码 MIT（可商用，不可撤销），我们写的部分 PolyForm Noncommercial（禁止商用）。
+详见 [LICENSE](LICENSE)。
