@@ -255,7 +255,7 @@ def register(mcp, buckets_dir):
         limit = int(request.query_params.get('limit', 8))
         return JSONResponse([{'ts': r[0], 'source': r[1], 'role': r[2], 'snippet': r[3]} for r in ctx_search(q, limit)])
 
-    # ---------- 磁铁召回（StarHub式：说到什么，相关记忆自动吸上来） ----------
+    # ---------- 磁铁召回（说到什么，相关记忆自动吸上来） ----------
     _STOP = set('的了我你他她它是在有和就不都也很到说着呢吧吗啊哦嗯这那些个么什怎为因所以及与或但把被让従从会能要去来上下里外面前后天今明昨点分时候没好多少一二三四五六七八九十')
 
     def _windows(text, maxw=24):
