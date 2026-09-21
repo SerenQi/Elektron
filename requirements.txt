@@ -1,0 +1,31 @@
+# ============================================================
+# Nocturne Memory Core — Python dependencies
+# Install: pip install -r requirements.txt
+# Requires Python 3.11+ (CI uses 3.12)
+# ============================================================
+
+# MCP protocol SDK (FastMCP tool surface).
+# mcp 2.x removed/changed FastMCP import paths used by server.py — stay on 1.x.
+mcp>=1.15.0,<2
+
+# 模糊匹配（记忆桶搜索）
+rapidfuzz>=3.0.0
+
+# OpenAI 兼容客户端（支持 DeepSeek/Ollama/LM Studio/vLLM/Gemini 等任意兼容 API）
+openai>=1.0.0
+
+# YAML 配置解析
+pyyaml>=6.0
+
+# Markdown frontmatter 解析（桶文件读写）
+python-frontmatter>=1.1.0
+
+# 中文分词
+jieba>=0.42.1
+
+# 异步 HTTP 客户端（应用层保活 ping）
+httpx>=0.27.0
+
+# 向量相似度计算 (导入模式/聚类)
+numpy>=1.24.0
+scikit-learn>=1.2.0

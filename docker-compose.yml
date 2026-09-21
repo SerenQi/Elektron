@@ -1,0 +1,22 @@
+services:
+  nocturne-memory:
+    build: .
+    container_name: nocturne-memory
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      OMBRE_TRANSPORT: streamable-http
+      OMBRE_BUCKETS_DIR: /data
+      OMBRE_API_KEY: ${OMBRE_API_KEY:-}
+      OMBRE_AGENT_NAME: ${OMBRE_AGENT_NAME:-Agent}
+      OMBRE_HUMAN_NAME: ${OMBRE_HUMAN_NAME:-Human}
+      OMBRE_AGENT_PERSONA: ${OMBRE_AGENT_PERSONA:-}
+      OMBRE_API_PASSWORD: ${OMBRE_API_PASSWORD:-}
+    volumes:
+      - ${OMBRE_HOST_VAULT_DIR:-./buckets}:/data
+      # Uncomment after creating config.yaml:
+      # - ./config.yaml:/app/config.yaml:ro
