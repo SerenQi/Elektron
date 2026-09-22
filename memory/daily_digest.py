@@ -2,7 +2,7 @@
 # 日结骨架（纯脚本无 LLM 版）
 # 每晚跑：从 context.db 聚合当天对话 → digest 表。
 # 情感浓度用启发式代理（表情/感叹/笑声密度），无偏见抽样，不经过"重要性筛选"。
-# LLM 精修版等她批外部模型额度后叠加。
+# LLM 精修版待外部模型额度到位后叠加。
 import os
 from pathlib import Path
 import sqlite3, sys, datetime, re, json, os, urllib.request
@@ -123,7 +123,7 @@ def build(day):
                rows[0][0][11:16], rows[-1][0][11:16], moments,
                datetime.datetime.now().isoformat(timespec='seconds')))
     c.commit()
-    return f'{day}: {len(rows)}条（她{len(hers)}/我{len(mine)}）{rows[0][0][11:16]}→{rows[-1][0][11:16]}，情绪高光{len(scored)}条已存'
+    return f'{day}: {len(rows)}条（human {len(hers)}/agent {len(mine)}）{rows[0][0][11:16]}→{rows[-1][0][11:16]}，情绪高光{len(scored)}条已存'
 
 if __name__ == '__main__':
     day = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()

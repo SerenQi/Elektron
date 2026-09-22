@@ -5435,7 +5435,7 @@ async def hold(
     recurrence: float = 0.0,
 ) -> str:
     """写入长期沉淀。
-    gesture：带语气的现场一句（潮痕式，"她说X时声音很轻"而非结论）。
+    gesture：带语气的现场一句（潮痕式，"说那句话时声音很轻"而非结论）。
     source_link：链回原始对话/transcript位置，摘要给信号、链接回质感。
     recurrence：复现权重0-1，反复出现的主题调高。
     kind：memory/feel/writing/unresolved/window。
@@ -6246,7 +6246,7 @@ async def _refresh_dream_cache(exclude_bucket_ids: set[str] | None = None):
     recent_count = min(5, len(recent_pool))
     recent = random.sample(recent_pool, recent_count) if recent_count else []
 
-    # --- 记忆碰撞（她 2026-09-15 的点子）：从全库随机抽两条相距很远的记忆，
+    # --- 记忆碰撞：从全库随机抽两条相距很远的记忆，
     # 混进梦的素材里强行相撞。不做语义匹配——乱点鸳鸯谱才是梦的价值。
     collide = []
     try:
