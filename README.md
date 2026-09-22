@@ -31,9 +31,10 @@
 ## 三层
 
 ```
-memory/     记忆层   双层存储（结构化记忆 + 完整原文）、多路召回、衰减与归档
-            状态层   九维驱动力、局部疲劳、事件账本、对话残留分类器
-behavior/   行为层   冲动队列（租约/重试/原子写）、闭环回写、情绪唤醒
+memory/        记忆层   双层存储（结构化记忆 + 完整原文）、多路召回、衰减与归档
+               状态层   九维驱动力、局部疲劳、事件账本、对话残留分类器
+behavior/      行为层   冲动队列（租约/重试/原子写）、闭环回写、情绪唤醒
+archive-room/  档案室   只读 API + 网页：把上面三层摊开来看
 ```
 
 记忆层可以单用。状态层依赖记忆层。行为层依赖状态层。
@@ -53,6 +54,18 @@ cp config.example.yaml config.yaml    # 改 buckets_dir
 cp .env.example .env                  # 填模型 key（可选，不填则自动打标降级为默认值）
 python memory/server.py               # 起记忆服务（MCP / HTTP 双协议）
 ```
+
+档案室（网页）：
+
+```bash
+python archive-room/init_db.py    # 首次：建空库
+python archive-room/api.py        # 只读 API，默认 8021
+# 把 archive-room/frontend/ 用任意静态服务器托起来，/api/ 反代到 8021
+```
+
+一整条时间线会画成星图：每一句原话是一颗星，按时间从内向外排布，
+点一颗就回到那一刻的现场。记忆、日印象、事件账本、未闭环的线索各占一页。
+只读，不写库。
 
 行为层挂 cron：
 

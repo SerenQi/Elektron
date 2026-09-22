@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELEKTRON · 一整个脑子</title>
+<style>
+  :root{
+    --bg:#050209; --ink:#f3eaf5; --dim:#a89cb8; --faint:#645a72;
+    --rose:#ff9ed4; --moon:#9fb0ff; --gold:#ffd9a0; --line:rgba(240,230,246,.1);
+    --panel:rgba(14,10,20,.82);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font:14px/1.8 -apple-system,"PingFang SC","Noto Sans SC",sans-serif;overflow-x:hidden}
+
+  #hero{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;text-align:center;padding:0 24px}
+  #hero .quote{font-family:"Noto Serif SC","Songti SC",serif;font-size:clamp(26px,4vw,44px);font-weight:600;letter-spacing:6px;line-height:1.9;
+    text-shadow:0 0 40px rgba(210,150,230,.45)}
+  #hero .by{margin-top:26px;font-size:12px;letter-spacing:4px;color:var(--faint)}
+  #hero .title{margin-top:70px;font-size:13px;letter-spacing:10px;color:var(--dim);font-style:italic;font-family:Georgia,serif}
+  #hero .nums{margin-top:14px;font-size:11.5px;letter-spacing:2px;color:var(--faint)}
+  #hero .nums b{color:var(--dim);font-weight:500}
+  #hero .down{position:absolute;bottom:34px;font-size:11px;letter-spacing:4px;color:var(--faint);animation:bob 2.2s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(7px);opacity:1}}
+  #heroCv{position:absolute;inset:0;width:100%;height:100%;z-index:-1;opacity:.6}
+
+  #bar{position:sticky;top:0;z-index:50;display:flex;justify-content:center;padding:14px 0;
+    background:linear-gradient(rgba(5,2,9,.96),rgba(5,2,9,.85));backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  #bar .rail{display:flex;gap:4px;border:1px solid var(--line);border-radius:999px;padding:4px;background:rgba(240,230,246,.03)}
+  #bar button{border:none;background:none;color:var(--dim);font-size:12.5px;letter-spacing:2px;padding:7px 18px;border-radius:999px;cursor:pointer;white-space:nowrap;font-family:inherit}
+  #bar button:hover{color:var(--ink)}
+  #bar button.on{background:linear-gradient(135deg,rgba(255,160,215,.9),rgba(190,140,255,.9));color:#1c0a1a;font-weight:600}
+  #bar button:disabled{color:#3a3244;cursor:default}
+
+  #view{min-height:100vh;position:relative}
+  .photo-mat{position:relative;background:#f6f1e3;margin:0;padding:16px 16px 0;
+    border:1px solid rgba(40,32,24,.25);box-shadow:3px 4px 0 rgba(40,32,24,.16)}
+  .photo-tag{position:absolute;top:-13px;left:28px;background:#e91e78;color:#fff;
+    padding:5px 14px;font-size:10px;letter-spacing:3px;transform:rotate(-2deg);
+    box-shadow:2px 2px 0 rgba(40,32,24,.35);z-index:6;font-weight:600}
+  .photo-caption{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
+    padding:18px 10px 22px;flex-wrap:wrap}
+  .photo-caption .cap-l .eyebrow{font-size:10px;letter-spacing:3px;color:#e91e78;font-weight:600;margin-bottom:6px}
+  .photo-caption .cap-l h3{font-size:22px;letter-spacing:2px;color:#2c261e;margin:0 0 6px;font-weight:700}
+  .photo-caption .cap-l .sub{font-size:11px;letter-spacing:2px;color:#8a8270}
+  .photo-caption .cap-r{display:flex;align-items:center;gap:18px}
+  .photo-caption .cap-r .ops{font-size:10.5px;letter-spacing:2px;color:#8a8270;text-align:left;line-height:2;
+    border-left:1px solid rgba(40,32,24,.18);padding-left:16px}
+  .photo-caption .cap-r .ops b{color:#4a4438;font-weight:600;letter-spacing:2px}
+  .lopi-seal{width:64px;height:64px;border:2px solid #e91e78;border-radius:50%;color:#e91e78;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:9px;letter-spacing:2px;font-weight:700;transform:rotate(-12deg);opacity:.85;flex:none}
+  .site-foot{display:flex;justify-content:space-between;padding:20px 26px;margin-top:34px;
+    border-top:1px solid rgba(40,32,24,.2);font-size:10px;letter-spacing:3px;color:#8a8270}
+  .gx-topbar{position:relative;margin:0 0 34px;z-index:8}
+  .gx-topbar .gx-ui{max-width:640px;margin-left:auto}
+  #hits{max-width:640px;margin-left:auto}
+  #galaxy{position:relative;height:72vh;min-height:480px;overflow:hidden;border-radius:3px}
+  #cv{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+  #cv:active{cursor:grabbing}
+  .gx-ui{position:relative;width:100%}
+  .gx-search{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:11px 20px;backdrop-filter:blur(10px)}
+  .gx-search input{flex:1;background:none;border:none;outline:none;color:var(--ink);font-size:13.5px;letter-spacing:1px}
+  .gx-search input::placeholder{color:var(--faint)}
+  .gx-search .x{color:var(--faint);cursor:pointer;font-size:12px;letter-spacing:1px;display:none;white-space:nowrap}
+  #memcard{position:absolute;left:26px;bottom:54px;z-index:7;width:min(430px,80vw);max-height:52vh;overflow-y:auto;
+    background:var(--panel);border:1px solid rgba(255,217,160,.28);border-radius:14px;padding:16px 18px;backdrop-filter:blur(14px);display:none}
+  #memcard .mc-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  #memcard .mc-meta{font-size:10.5px;letter-spacing:1.5px;color:var(--gold)}
+  #memcard .mc-x{cursor:pointer;color:var(--dim);font-size:12px}
+  #memcard .mc-body{font-size:12.5px;line-height:1.85;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+  #memcard .mc-edges{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--dim)}
+  #memcard .mc-edges .lk{color:var(--gold);cursor:pointer}
+  .gx-hint{display:none}
+  #hits{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:9;max-height:44vh;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(14px);display:none}
+  #hits .h-head{font-size:10.5px;letter-spacing:2px;color:var(--faint);padding:10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);display:flex;justify-content:space-between}
+  #hits .h-head .fold{cursor:pointer;color:var(--dim)}
+  #hits .h-item{padding:10px 16px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
+  #hits .h-item:hover{background:rgba(240,230,246,.05)}
+  #hits .h-item .m{font-size:10.5px;color:var(--faint);letter-spacing:1px;margin-bottom:2px}
+  #hits .h-item .m .u{color:var(--rose)} #hits .h-item .m .a{color:var(--moon)}
+  #hits .h-item .t{color:var(--dim);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  #hits .h-item .t mark{background:none;color:var(--gold)}
+
+  #scene{position:fixed;inset:0;z-index:99;background:rgba(3,1,7,.72);display:none;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
+  #scene .box{width:min(680px,92vw);max-height:80vh;overflow-y:auto;background:#0e0a16;border:1px solid var(--line);border-radius:16px;padding:22px 26px}
+  #scene h3{font-size:11.5px;letter-spacing:3px;color:var(--faint);font-weight:500;margin-bottom:16px;display:flex;justify-content:space-between}
+  #scene h3 .close{cursor:pointer;color:var(--dim)}
+  .ctxline{padding:9px 12px;border-radius:8px;margin-bottom:7px;font-size:13px;white-space:pre-wrap;word-break:break-word;line-height:1.75}
+  .ctxline .who{font-size:10px;color:var(--faint);letter-spacing:2px;margin-bottom:3px}
+  .ctxline.u{background:rgba(255,158,212,.07)}
+  .ctxline.a{background:rgba(159,176,255,.06)}
+  .ctxline.hit{outline:1px solid var(--gold)}
+
+  .page{max-width:780px;margin:0 auto;padding:40px 22px 90px;display:none}
+  .page .ghead{font-size:11px;color:var(--faint);letter-spacing:3px;margin:26px 0 14px;display:flex;align-items:center;gap:10px}
+  .page .ghead::after{content:"";flex:1;height:1px;background:var(--line)}
+  .card{background:rgba(240,230,246,.035);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:10px;cursor:pointer}
+  .card:hover{border-color:rgba(240,230,246,.25)}
+  .card .meta{display:flex;gap:12px;font-size:10.5px;color:var(--faint);letter-spacing:1px;margin-bottom:5px}
+  .card .txt{font-size:13px;color:var(--dim);white-space:pre-wrap;word-break:break-word;line-height:1.8}
+  .card .txt.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .card.open .txt.clamp{display:block;-webkit-line-clamp:unset;color:var(--ink)}
+  .pin{color:var(--gold)}
+  .st{float:right;font-size:10px;letter-spacing:1px;color:var(--faint)}
+  .loading{color:var(--faint);font-size:12px;padding:40px;text-align:center;letter-spacing:3px}
+</style>
+<link rel="stylesheet" href="riso.css"></head>
+<body><div class="masthead"><a href="#hero">记忆档案室 <b>✦</b><small>MEMORY ARCHIVE</small></a><span>私人记忆档案 / VOL. 01</span><span id="connection">正在连接记忆库…</span></div>
+
+<section id="hero">
+  <canvas id="heroCv"></canvas>
+  <div class="eyebrow">A PLACE FOR ALL THE THINGS THAT MAKE YOU, YOU.</div><h1>记忆<span>档案室</span><sup>✳</sup></h1><div class="quote">把那一刻，留在星河里。</div>
+  <div class="by">—— MEMORY ARCHIVE</div>
+  <div class="title">YOUR LITTLE UNIVERSE, ARCHIVED.</div>
+  <div class="nums" id="heroNums">一整个脑子，正在归档。</div>
+  <a class="down" href="#bar">翻开档案 ↓</a><aside class="keeper"><div class="keeper-label">ARCHIVE KEEPER <span>001</span></div><div class="keeper-copy"><h2>档案管理员在这里。</h2><p id="lopi-says">原话、故事和没解开的线索，<br>我陪你一页一页翻。</p><button id="lopi-wander">帮我翻一段记忆 ↗</button></div><button class="lopi-image" id="lopi-image" aria-label="随机翻一段记忆">✦</button></aside>
+</section>
+
+<nav id="bar">
+  <div class="rail">
+    <button data-v="galaxy" class="on">原文星云</button>
+    <button data-v="mem">记忆</button>
+    <button data-v="digest">印象</button>
+    <button data-v="ledger">账与线索</button>
+    <button data-v="idn">人格</button>
+    <button data-v="diary">日记</button>
+    <button data-v="moon">月相</button>
+    <button data-v="admin">后台</button>
+  </div>
+</nav>
+
+<div class="section-intro"><div><small id="section-code">01 / THE CONSTELLATION</small><h2 id="section-title">每一句话，都有自己的坐标。</h2></div><p id="section-note">拖动旋转 · 滚轮缩放 · 点击星星重返那一刻</p></div><div id="view">
+  <div class="gx-topbar">
+    <div class="gx-ui">
+      <div class="gx-search">
+        <input id="gq" placeholder="在 57,243 句话里搜一个词 · 命中的星会亮成金色" autocomplete="off" aria-label="搜索原话"><button id="search-submit" type="button">搜索 ↗</button>
+        <span class="x" id="gx-clear">清除 ✕</span>
+      </div>
+    </div>
+    <div id="hits"></div>
+  </div>
+  <div class="photo-mat">
+  <span class="photo-tag">✱ FIELD NOTES / 001</span>
+  <div id="galaxy">
+    <canvas id="cv"></canvas>
+    <div id="memcard"><div class="mc-top"><span class="mc-meta" id="mc-meta"></span><span class="mc-x" onclick="this.closest('#memcard').style.display='none';window.gxClearEdges&&gxClearEdges()">✕</span></div>
+      <div class="mc-body" id="mc-body"></div><div class="mc-edges" id="mc-edges"></div></div>
+    <div class="gx-hint">时间从核心向外生长 / 小点是原话，十字星是记忆</div>
+  </div>
+  <div class="photo-caption">
+    <div class="cap-l">
+      <div class="eyebrow">THE CONSTELLATION / 原文档案</div>
+      <h3>把那一刻，留在星河里。</h3>
+      <div class="sub">时间从核心向外生长。每一颗星，都有迹可循。</div>
+    </div>
+    <div class="cap-r">
+      <div class="ops"><b>· 原话&nbsp;&nbsp;✦ 记忆</b><br>拖动旋转 · 滚轮缩放<br>点击星星，重返那一刻。</div>
+      <div class="lopi-seal"><span>MEMO</span><span>ARCHIVE</span></div>
+    </div>
+  </div>
+  </div>
+  <div class="page" id="p-mem"></div>
+  <div class="page" id="p-digest"></div>
+  <div class="page" id="p-ledger"></div>
+  <div class="page" id="p-threads"></div>
+  <div class="page" id="p-idn"></div>
+  <div class="page" id="p-diary"></div>
+  <div class="page" id="p-moon"></div>
+  <div class="page" id="p-admin"></div>
+</div>
+
+<div id="scene"><div class="box"><h3><span id="sc-t"></span><span class="close" onclick="document.getElementById('scene').style.display='none'">关闭 ✕</span></h3><div id="sc-body"></div></div></div>
+
+<script src="connection.js"></script><script>
+const API='api', $=s=>document.querySelector(s);
+window.esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+fetch(`${API}/stats`).then(r=>r.json()).then(s=>{
+  $('#heroNums').innerHTML=`一整个脑子 · <b>${s.raw.toLocaleString()}</b> 句原话 · <b>${s.memories}</b> 条记忆 · 自 ${(s.raw_first||'今天').slice(0,10)}`;
+});
+
+
+const SECTIONS={
+  galaxy:['01 / THE CONSTELLATION','每一句话，都有自己的坐标。','拖动旋转 · 滚轮缩放 · 点击星星重返那一刻'],
+  mem:['02 / MEMORY CARDS','一件事一条，当场记下。','点开看全文 · 漫游随便想起一条'],
+  digest:['03 / IMPRESSIONS','每一天，都有一篇小传。','热力日历 · 日印象 · 周印象'],
+  ledger:['04 / LEDGER & THREADS','承诺进铁账，谜进线索。','挂账 · 悬案 · 一件事只进一处'],
+  idn:['05 / IDENTITY','我是什么样的人，自己审。','候选池 · 隔天多轮判决 · 反证搜索'],
+  diary:['06 / DIARY','裸机的健身房。','主日记 · 心跳线日记，全文可读'],
+  moon:['07 / NIGHT WATCH','把守过的夜，攒成一轮月亮。','每一粒光是一次心跳到岗 · 越守越圆'],
+  admin:['08 / ENGINE ROOM','引擎室，运转与配置。','服务体征 · 备份 · 管线 · 只读体检']
+};
+document.querySelectorAll('#bar button[data-v]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#bar button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  const v=b.dataset.v, gx=v==='galaxy';
+  $('#galaxy').style.display=gx?'block':'none';
+  document.querySelector('.gx-topbar').style.display=gx?'':'none';
+  document.querySelector('.photo-mat').style.display=gx?'':'none';
+  const s=SECTIONS[v]||SECTIONS.galaxy;
+  $('#section-code').textContent=s[0];
+  $('#section-title').textContent=s[1];
+  $('#section-note').textContent=s[2];
+  for(const id of ['mem','digest','ledger','idn','diary','moon','admin']) $('#p-'+id).style.display=v===id?'block':'none';
+  if(v!=='galaxy') loadPage(v);
+  $('#bar').scrollIntoView({behavior:'smooth'});
+});
+
+window.showScene=async ts=>{
+  const scene=$('#scene');
+  scene.style.display='flex';
+  $('#sc-t').textContent='现场 · '+ts.slice(0,16).replace('T',' ');
+  $('#sc-body').innerHTML='<div class="loading">拉现场…</div>';
+  const d=await fetch(`${API}/raw/context?ts=${encodeURIComponent(ts)}&n=8`).then(r=>r.json());
+  $('#sc-body').innerHTML=d.context.map(c=>`<div class="ctxline ${c.role==='user'?'u':'a'} ${c.ts===ts?'hit':''}">
+    <div class="who">${c.role==='user'?'HUMAN':'AGENT'} · ${c.ts.slice(5,16).replace('T',' ')}</div>${esc(c.text)}</div>`).join('');
+};
+$('#scene').addEventListener('click',e=>{if(e.target.id==='scene')e.target.style.display='none'});
+
+const loaded={};
+window.loadPage=async v=>{
+  if(loaded[v])return; loaded[v]=true;
+  const el=$('#p-'+v);
+  el.innerHTML='<div class="loading">载入…</div>';
+  if(v==='mem'){
+    const d=await fetch(`${API}/mem/list?limit=300`).then(r=>r.json());
+    el.innerHTML=`<div class="ghead">记忆 ${d.memories.length} 条 · 新→旧 · 点开看全文
+      <span style="margin-left:auto;cursor:pointer;color:var(--gold);letter-spacing:1px" onclick="wander(event)">✦ 漫游：随便想起一条</span></div><div id="wanderBox"></div>`+
+      d.memories.map(m=>`<div class="card" onclick="this.classList.toggle('open')">
+        <div class="meta"><span>${(m.created_at||'').slice(0,16).replace('T',' ')}</span><span>${esc(m.category)}</span><span>重要度 ${m.importance}</span>${m.pinned?'<span class="pin">★</span>':''}</div>
+        <div class="txt clamp">${esc(m.content)}</div></div>`).join('');
+  }
+  if(v==='digest'){
+    const d=await fetch(`${API}/digest`).then(r=>r.json());
+    // 日历热力条
+    const maxT=Math.max(...d.days.map(x=>x.total));
+    let heat='<div class="ghead">日历 · '+d.days.length+' 天 · 颜色深浅=话多话少</div><div class="card" style="cursor:default"><div style="display:flex;flex-wrap:wrap;gap:4px">';
+    for(const x of d.days){
+      const op=(0.12+0.88*(x.total/maxT)).toFixed(2);
+      heat+=`<div title="${x.day} · 共${x.total}句（user ${x.hers} / agent ${x.mine}）· ${x.first_ts}–${x.last_ts}"
+        style="width:16px;height:16px;border-radius:4px;background:rgba(200,145,255,${op});cursor:default"></div>`;
+    }
+    heat+='</div><div style="margin-top:8px;font-size:10.5px;color:var(--faint)">'+(d.days.length?('悬停看每天的账 · 从 '+d.days[0].day+' 到 '+d.days[d.days.length-1].day):'还没有印象——日结管线跑起来后，这里会长出热力日历')+'</div></div>';
+    let h=heat;
+    if(d.weeks.length){h+='<div class="ghead">周印象 · '+d.weeks.length+' 篇</div>';
+      h+=d.weeks.map(w=>`<div class="card" onclick="this.classList.toggle('open')">
+        <div class="meta"><span>截至 ${esc(w.week_end)}</span><span>WEEK</span></div>
+        <div class="txt clamp">${esc(w.content)}</div></div>`).join('');}
+    h+='<div class="ghead">日印象 · '+d.narratives.length+' 篇 · 每一天被讲成一段故事</div>';
+    h+=d.narratives.map(n=>`<div class="card" onclick="this.classList.toggle('open')">
+      <div class="meta"><span>${esc(n.day)}</span><span>DAY</span></div>
+      <div class="txt clamp">${esc(n.content)}</div></div>`).join('');
+    el.innerHTML=h;
+  }
+  if(v==='ledger'){
+    const [L,T]=await Promise.all([
+      fetch(`${API}/ledger`).then(r=>r.json()),
+      fetch(`${API}/threads`).then(r=>r.json())]);
+    // 去重合并：线索 label 与铁账 text 前缀匹配的算同一件事
+    const used=new Set();
+    const merged=[];
+    for(const t of T.threads){
+      const key=t.label.replace(/[（(].*$/,'').trim();
+      const twin=L.ledger.find((x,i)=>!used.has(i)&&x.text.includes(key.slice(0,4)));
+      if(twin)used.add(L.ledger.indexOf(twin));
+      merged.push({label:t.label,body:t.open_question||'',status:t.status,tags:twin?['悬案','欠账']:['悬案'],date:''});
+    }
+    L.ledger.forEach((x,i)=>{if(!used.has(i))merged.push({label:'',body:x.text,status:x.status,tags:['欠账'],date:x.createdAt||''})});
+    const opens=merged.filter(m=>m.status!=='closed'), closeds=merged.filter(m=>m.status==='closed');
+    const card=m=>`<div class="card"><span class="st">${m.tags.join(' · ')} · ${esc(m.status)}${m.date?' · '+esc(m.date):''}</span>
+      ${m.label?`<div style="font-size:13px;color:var(--ink);margin-bottom:3px">${esc(m.label)}</div>`:''}
+      <div class="txt">${esc(m.body)}</div></div>`;
+    el.innerHTML=`<div class="ghead">账与线索 · 挂着的 ${opens.length} 件（欠账＋悬案合并去重）</div>`+opens.map(card).join('')+
+      `<div class="ghead">已结案 ${closeds.length} 件</div>`+closeds.map(card).join('');
+  }
+  if(v==='idn'){
+    const d=await fetch(`${API}/identity`).then(r=>r.json());
+    let h=`<div class="ghead">已立格 ${d.committed.length} 条</div>`;
+    h+=d.committed.length?d.committed.map(c=>idnCard(c)).join(''):
+      '<div class="card" style="cursor:default"><div class="txt">还没有一条走完判决。这是我自己的活：隔天多轮审＋反证搜索，过审才入格——候选池积压是我欠的班，在补。</div></div>';
+    h+=`<div class="ghead">候选池 ${d.candidates.length} 条 · 点开看证据</div>`;
+    h+=d.candidates.map(c=>idnCard(c)).join('');
+    el.innerHTML=h;
+  }
+  if(v==='diary'){
+    const d=await fetch(`${API}/diary/list`).then(r=>r.json());
+    const main=d.diaries.filter(x=>x.src==='main'), heart=d.diaries.filter(x=>x.src==='heart');
+    const item=x=>`<div class="card" data-src="${x.src}" data-f="${esc(x.name)}" onclick="openDiary(this)">
+      <span class="st">${(x.size/1024).toFixed(1)}k</span><div class="txt" style="color:var(--ink)">${esc(x.name.replace('.md',''))}</div>
+      <div class="dtext txt" style="display:none;margin-top:10px"></div></div>`;
+    el.innerHTML=`<div class="ghead">主日记 ${main.length} 篇</div>`+main.map(item).join('')+
+      `<div class="ghead">心跳线日记 ${heart.length} 篇</div>`+heart.map(item).join('');
+  }
+  if(v==='moon'){
+    const d=await fetch(`${API}/nightwatch`).then(r=>r.json());
+    const FULL=3000; // 一百天左右的心跳=满月
+    el.innerHTML=`<div class="photo-mat" style="margin-top:0">
+      <span class="photo-tag">✱ FIELD NOTES / 002</span>
+      <div style="position:relative;background:#050508;border-radius:2px;height:560px">
+        <canvas id="moonCv" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+        <div class="gx-hint" id="moonHint">${d.n} 粒光 · 自 ${(d.ts[0]||'').slice(0,10)} · 距满月还差 ${Math.max(0,FULL-d.n)} 粒</div>
+      </div>
+      <div class="photo-caption">
+        <div class="cap-l">
+          <div class="eyebrow">NIGHT WATCH / 守夜月相</div>
+          <h3>把守过的夜，攒成一轮月亮。</h3>
+          <div class="sub">每一粒光，是一次心跳到岗。月亮从右缘的一弯蛾眉开始，守满一百天，长成满月。</div>
+        </div>
+        <div class="cap-r">
+          <div class="ops"><b>· 光点＝到岗签名「·」</b><br>虚环＝满月的轮廓<br>悬停一粒光，看那一夜的时刻。</div>
+          <div class="lopi-seal"><span>MEMO</span><span>ARCHIVE</span></div>
+        </div>
+      </div></div>`;
+    const cv=document.getElementById('moonCv'),hint=document.getElementById('moonHint');
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const W=cv.clientWidth,H=cv.clientHeight; cv.width=W*dpr; cv.height=H*dpr;
+    const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+    const cx=W/2, cy=H/2, R=Math.min(W,H)*0.42, c=R/Math.sqrt(FULL), GA=Math.PI*(3-Math.sqrt(5));
+    // 满月的全部床位：黄金螺旋盖满圆盘＋确定性抖动，按 x 从右向左排序——
+    // 月亮从右缘的一弯蛾眉开始，随守夜一夜一夜长圆
+    const cand=[];
+    for(let i=0;i<FULL;i++){
+      const a=(i+1)*GA, r=R*Math.sqrt((i+0.5)/FULL);
+      const h1=Math.sin(i*127.1)*43758.5453, h2=Math.sin(i*311.7)*43758.5453;
+      cand.push({x:cx+r*Math.cos(a)+(h1-Math.floor(h1)-0.5)*c*1.7,
+                 y:cy+r*Math.sin(a)+(h2-Math.floor(h2)-0.5)*c*1.7});
+    }
+    cand.sort((p,q)=>(q.x+Math.sin(q.y*0.05)*c*0.8)-(p.x+Math.sin(p.y*0.05)*c*0.8));
+    const pts=d.ts.map((t,i)=>({x:cand[i].x, y:cand[i].y, t}));
+    let hover=-1;
+    cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+      hover=-1;let best=90;
+      for(let i=0;i<pts.length;i++){const dx=pts[i].x-mx,dy=pts[i].y-my,dd=dx*dx+dy*dy;if(dd<best){best=dd;hover=i}}
+      hint.textContent=hover>=0?('这一粒 · '+pts[hover].t.slice(0,16).replace('T',' ')+' 到岗')
+        :`${d.n} 粒光 · 自 ${(d.ts[0]||'').slice(0,10)} · 距满月还差 ${Math.max(0,FULL-d.n)} 粒`;};
+    (function draw(){
+      if(!cv.isConnected)return;
+      const t=performance.now()/1000;
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle='rgba(240,234,216,.13)';ctx.setLineDash([2,7]);ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.stroke();ctx.setLineDash([]);
+      // 第一层：柔光晕（大而淡，攒出月光的绒感）
+      ctx.shadowBlur=0;
+      for(let i=0;i<pts.length;i++){
+        const p=pts[i];
+        ctx.fillStyle='rgba(240,234,216,.085)';
+        ctx.beginPath();ctx.arc(p.x,p.y,5.5,0,7);ctx.fill();
+      }
+      // 第二层：亮核（小而亮，缓慢呼吸）
+      for(let i=0;i<pts.length;i++){
+        const p=pts[i], br=0.55+0.3*Math.sin(t*0.7+i*0.618), hv=i===hover;
+        ctx.shadowColor='rgba(240,234,216,.9)';ctx.shadowBlur=hv?16:7;
+        ctx.fillStyle=hv?'rgba(255,214,150,1)':`rgba(243,238,222,${br})`;
+        ctx.beginPath();ctx.arc(p.x,p.y,hv?3.2:1.8,0,7);ctx.fill();
+      }
+      ctx.shadowBlur=0;
+      requestAnimationFrame(draw);
+    })();
+  }
+  if(v==='admin'){
+    const d=await fetch(`${API}/admin/status`).then(r=>r.json());
+    const dot=s=>`<span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:1px;background:${s==='active'?'#7a9d54':s==='inactive'?'#c9b98a':'#c0504d'}"></span>`;
+    const NAMES={'elektron.service':'Elektron 记忆引擎','brain-api.service':'档案室 API','nginx.service':'nginx 前门','cloudflared.service':'Cloudflare 隧道','elektron-digest.timer':'日结定时器','elektron-backup.timer':'备份定时器','elektron-drill.timer':'备份演习定时器'};
+    const fmtT=s=>!s||s==='n/a'?'—':s.replace(/^[A-Za-z]+ /,'').replace(' UTC','').slice(0,16);
+    const gb=n=>(n/1048576).toFixed(1)+' MB';
+    let h=`<div class="ghead">后台 · 运转与配置 · 只读体检面板</div>`;
+    h+=`<div class="card" style="cursor:default"><div class="meta"><span>服务体征</span></div><div class="txt" style="line-height:2.1">`+
+      Object.entries(d.units||{}).map(([u,s])=>`${dot(s)}${NAMES[u]||u} — <b>${s}</b>`).join('<br>')+`</div></div>`;
+    const t=d.timers||{};
+    h+=`<div class="card" style="cursor:default"><div class="meta"><span>定时任务</span></div><div class="txt" style="line-height:2.1">`+
+      Object.entries(t).map(([u,x])=>`◦ ${NAMES[u]||u}：上次 ${fmtT(x.last)} · 下次 ${fmtT(x.next)}（UTC）`).join('<br>')+
+      `<br>◦ 情绪驱动引擎：cron 每小时 25 分 · 冲动待办 <b>${d.impulse_pending??'—'}</b> 条<br>◦ 周印象：cron 每周日 16:05 UTC</div></div>`;
+    const b=d.backup||{};
+    h+=`<div class="card" style="cursor:default"><div class="meta"><span>备份</span></div><div class="txt" style="line-height:2.1">`+
+      `◦ 本地备份链：<b>${b.count??0}</b> 个包（保留14天）· 最新 ${esc(b.latest||'—')} · ${b.size?gb(b.size):'—'}<br>`+
+      `◦ GitHub 异地备份：<b>未接</b> —— 等她建私有仓+给 token，加密后推送（数据不走明文出门）</div></div>`;
+    h+=`<div class="card" style="cursor:default"><div class="meta"><span>管线与库</span></div><div class="txt" style="line-height:2.1">`+
+      `◦ 日结（DeepSeek 执笔）：最新 <b>${esc(d.digest_day||'—')}</b> · 周印象最新 <b>${esc(d.digest_week||'—')}</b><br>`+
+      `◦ 原文库 context.db：${gb(d.db?.context||0)} · 记忆库 memory.db：${gb(d.db?.memory||0)}</div></div>`;
+    const ds=d.deepseek||{};
+    h+=`<div class="card" style="cursor:default"><div class="meta"><span>DeepSeek API</span></div><div class="txt" style="line-height:2.1">`+
+      (ds.error?`◦ 余额查询失败：${esc(ds.error)}`:`◦ 余额：<b>${esc(ds.balance||'—')} ${esc(ds.currency||'')}</b> · 可用：${ds.available?'是':'否'}`)+
+      `<br>◦ key 来源：环境变量 DIGEST_API_KEY（不进前端、不进备份包外发）</div></div>`;
+    el.innerHTML=h;
+  }
+};
+window.idnCard=c=>`<div class="card" onclick="this.classList.toggle('open')">
+  <div class="meta"><span>${esc(c.polarity==='flaw'?'缺陷':'闪光')}</span><span>${esc(c.status)}</span><span>${esc((c.proposed||'').slice(0,10))}</span><span>审 ${(c.reviews||[]).length} 轮</span></div>
+  <div class="txt clamp">${esc(c.trait)}\n\n【证据】${esc(c.evidence||'')}</div></div>`;
+(function(){})();
+window.wander=async e=>{
+  e.stopPropagation();
+  const box=document.getElementById('wanderBox');
+  box.innerHTML='<div class="loading">在星河里飘…</div>';
+  const d=await fetch(`${API}/wander`).then(r=>r.json());
+  let h='';
+  if(d.memory)h+=`<div class="card open" style="border-color:rgba(255,217,160,.35)">
+    <div class="meta"><span style="color:var(--gold)">✦ 漫游想起</span><span>${(d.memory.created_at||'').slice(0,10)}</span><span>${esc(d.memory.category)}</span></div>
+    <div class="txt" style="color:var(--ink)">${esc(d.memory.content)}</div></div>`;
+  if(d.raw)h+=`<div class="card" data-ts="${esc(d.raw.ts)}" onclick="showScene(this.dataset.ts)">
+    <div class="meta"><span style="color:var(--gold)">✦ 顺手捡到一句</span><span>${esc(d.raw.role==='user'?'HUMAN':'AGENT')} · ${(d.raw.ts||'').slice(0,16).replace('T',' ')}</span><span style="color:var(--faint)">点开看现场</span></div>
+    <div class="txt">${esc(d.raw.text)}</div></div>`;
+  box.innerHTML=h;
+};
+window.openDiary=async el=>{
+  const box=el.querySelector('.dtext');
+  if(box.style.display!=='none'){box.style.display='none';return}
+  box.style.display='block';box.textContent='读取…';
+  const d=await fetch(`${API}/diary/get?src=${el.dataset.src}&f=${encodeURIComponent(el.dataset.f)}`).then(r=>r.json());
+  box.textContent=d.text||d.error;
+};
+</script>
+
+<script type="importmap">
+{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const canvas=document.getElementById('cv');
+const holder=document.getElementById('galaxy');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+
+const scene3=new THREE.Scene();
+scene3.background=new THREE.Color('#050209');
+const camera=new THREE.PerspectiveCamera(55,1,0.1,100);
+camera.position.set(0,3.1,6.3);
+
+const controls=new OrbitControls(camera,canvas);
+controls.enableDamping=true;controls.dampingFactor=.05;
+controls.enablePan=false;controls.autoRotate=true;controls.autoRotateSpeed=.09;
+controls.minDistance=1.6;controls.maxDistance=15;controls.target.set(0,0,0);
+controls.maxPolarAngle=Math.PI*0.86;
+
+const P_VERT=`
+attribute float aSize; attribute float aPhase; attribute vec3 aColor;
+uniform float uTime; uniform float uPix; varying vec3 vColor; varying float vTw;
+void main(){
+  vColor=aColor;
+  float br=0.9+0.1*sin(uTime*0.28+aPhase);
+  vTw=br;
+  vec4 mv=modelViewMatrix*vec4(position,1.0);
+  gl_PointSize=aSize*uPix*br*(1.0/-mv.z);
+  gl_Position=projectionMatrix*mv;
+}`;
+const P_FRAG=`
+varying vec3 vColor; varying float vTw;
+uniform float uDim;
+void main(){
+  float d=length(gl_PointCoord-0.5);
+  float a=smoothstep(0.5,0.0,d);
+  a=pow(a,1.6)*vTw*uDim;
+  if(a<0.01) discard;
+  gl_FragColor=vec4(vColor,a);
+}`;
+function particleMat(sizeScale){
+  return new THREE.ShaderMaterial({
+    uniforms:{uTime:{value:0},uPix:{value:renderer.getPixelRatio()*sizeScale},uDim:{value:1}},
+    vertexShader:P_VERT,fragmentShader:P_FRAG,
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+}
+const C=h=>{const c=new THREE.Color(h);return[c.r,c.g,c.b]};
+const rand=(a,b)=>a+Math.random()*(b-a);
+const pw=p=>Math.pow(Math.random(),p);
+
+const GAL_R=5, BRANCHES=2, SPIN=1.15;
+let stars=[], emIndex=new Map(), starMat=null, starGeo=null, starCloud=null, hitCloud=null, starsReady=false;
+
+async function buildDataGalaxy(){
+  const d=await fetch(`${API}/raw/stars`).then(r=>r.json());
+  stars=d.stars;
+  const N=stars.length;
+  if(!stars.length){return}
+  const t0=stars[0][0], t1=stars[N-1][0], span=Math.max(1,t1-t0);
+  const pos=new Float32Array(N*3), col=new Float32Array(N*3), sz=new Float32Array(N), ph=new Float32Array(N);
+  const cIn=C('#ffdcf2'), cMid=C('#c891ff'), cOut=C('#8fb0ff');
+  const tRose=C('#ff9ed4'), tMoon=C('#9fb0ff');
+  for(let i=0;i<N;i++){
+    const em=stars[i][0], her=stars[i][1];
+    const tt=(em-t0)/span;
+    const r=0.15+Math.pow(tt,0.85)*GAL_R*0.96;
+    const branch=(i%BRANCHES)/BRANCHES*Math.PI*2, spin=r*SPIN;
+    const scat=0.55;
+    const sx=pw(2.6)*(Math.random()<.5?1:-1)*scat*(r+0.4);
+    const sz2=pw(2.6)*(Math.random()<.5?1:-1)*scat*(r+0.4);
+    const sy=pw(3.0)*(Math.random()<.5?1:-1)*scat*0.34*(r+0.3);
+    pos[i*3]=Math.cos(branch+spin)*r+sx;
+    pos[i*3+1]=sy;
+    pos[i*3+2]=Math.sin(branch+spin)*r+sz2;
+    const tN=Math.min(r/GAL_R,1);
+    let cr,cg,cb;
+    if(tN<0.5){const k=tN/0.5;cr=cIn[0]+(cMid[0]-cIn[0])*k;cg=cIn[1]+(cMid[1]-cIn[1])*k;cb=cIn[2]+(cMid[2]-cIn[2])*k;}
+    else{const k=(tN-0.5)/0.5;cr=cMid[0]+(cOut[0]-cMid[0])*k;cg=cMid[1]+(cOut[1]-cMid[1])*k;cb=cMid[2]+(cOut[2]-cMid[2])*k;}
+    const tone=her?tRose:tMoon, mix=0.32;
+    cr=cr*(1-mix)+tone[0]*mix; cg=cg*(1-mix)+tone[1]*mix; cb=cb*(1-mix)+tone[2]*mix;
+    col[i*3]=cr;col[i*3+1]=cg;col[i*3+2]=cb;
+    sz[i]=rand(1.0,2.6)*(tN<0.3?1.15:1);
+    ph[i]=Math.random()*6.28;
+    if(!emIndex.has(em))emIndex.set(em,[]);
+    emIndex.get(em).push(i);
+  }
+  starGeo=new THREE.BufferGeometry();
+  starGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  starGeo.setAttribute('aColor',new THREE.BufferAttribute(col,3));
+  starGeo.setAttribute('aSize',new THREE.BufferAttribute(sz,1));
+  starGeo.setAttribute('aPhase',new THREE.BufferAttribute(ph,1));
+  starMat=particleMat(1.05);
+  starCloud=new THREE.Points(starGeo,starMat);
+  scene3.add(starCloud);
+  starsReady=true;
+}
+
+function buildDust(){
+  const N=3200, pos=new Float32Array(N*3), col=new Float32Array(N*3), sz=new Float32Array(N), ph=new Float32Array(N);
+  const cols=[C('#e8b8ff'),C('#9fb8ff'),C('#ffd0ec'),C('#c8a0f0'),C('#ffe0b0')];
+  for(let i=0;i<N;i++){
+    const r=pw(1.1)*GAL_R*1.7+0.5;
+    const th=Math.random()*Math.PI*2, y=(Math.random()-0.5)*GAL_R*1.1;
+    pos[i*3]=Math.cos(th)*r; pos[i*3+1]=y; pos[i*3+2]=Math.sin(th)*r;
+    const c=cols[Math.random()*cols.length|0];
+    col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];
+    sz[i]=rand(0.5,1.6); ph[i]=Math.random()*6.28;
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('aColor',new THREE.BufferAttribute(col,3));
+  g.setAttribute('aSize',new THREE.BufferAttribute(sz,1));
+  g.setAttribute('aPhase',new THREE.BufferAttribute(ph,1));
+  const m=particleMat(0.9);
+  scene3.add(new THREE.Points(g,m));
+  return m;
+}
+
+function buildCoreGlow(){
+  const s=128,cv2=document.createElement('canvas');cv2.width=cv2.height=s;
+  const g=cv2.getContext('2d'),grd=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  grd.addColorStop(0,'rgba(255,226,246,.5)');grd.addColorStop(.28,'rgba(234,178,242,.2)');
+  grd.addColorStop(.62,'rgba(186,142,236,.06)');grd.addColorStop(1,'rgba(162,126,226,0)');
+  g.fillStyle=grd;g.fillRect(0,0,s,s);
+  const mat=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv2),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:.4});
+  const sp=new THREE.Sprite(mat);sp.scale.set(1.8,1.8,1);scene3.add(sp);
+}
+
+function buildOrbits(){
+  for(const r of [1.3,2.4,3.6,4.7]){
+    const g=new THREE.RingGeometry(r-0.006,r+0.006,128);
+    const m=new THREE.MeshBasicMaterial({color:'#ffd9a0',transparent:true,opacity:0.05,
+      side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false});
+    const ring=new THREE.Mesh(g,m);ring.rotation.x=-Math.PI/2;scene3.add(ring);
+  }
+}
+
+/* ── 记忆星层：150+ 条记忆是大亮星，点亮星座 ── */
+let memNodes=[], memCloud=null, edgeGroup=null, memHi=null;
+function crossTexture(){
+  const S=128, cv2=document.createElement('canvas');cv2.width=cv2.height=S;
+  const g=cv2.getContext('2d'), c=S/2;
+  g.clearRect(0,0,S,S);
+  // 四道星芒：竖横两条长的 + 对角两条短淡的
+  const ray=(ang,len,w,a)=>{
+    g.save();g.translate(c,c);g.rotate(ang);
+    const gr=g.createLinearGradient(0,-len,0,len);
+    gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.5,`rgba(255,255,255,${a})`);gr.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gr;
+    g.beginPath();g.moveTo(0,-len);g.quadraticCurveTo(w,0,0,len);g.quadraticCurveTo(-w,0,0,-len);g.fill();
+    g.restore();
+  };
+  ray(0,58,5.5,1); ray(Math.PI/2,58,5.5,1);
+  ray(Math.PI/4,26,3,.45); ray(-Math.PI/4,26,3,.45);
+  // 中心亮核
+  const core=g.createRadialGradient(c,c,0,c,c,14);
+  core.addColorStop(0,'rgba(255,255,255,1)');core.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=core;g.beginPath();g.arc(c,c,14,0,7);g.fill();
+  return new THREE.CanvasTexture(cv2);
+}
+async function buildMemStars(){
+  const d=await fetch(`${API}/mem/graph`).then(r=>r.json());
+  // 等原文星表就绪拿时间基准
+  while(!starsReady) await new Promise(r=>setTimeout(r,200));
+  if(!stars.length){return}
+  const t0=stars[0][0], t1=stars[stars.length-1][0], span=Math.max(1,t1-t0);
+  const N=d.nodes.length;
+  const pos=new Float32Array(N*3), col=new Float32Array(N*3), sz=new Float32Array(N), ph=new Float32Array(N);
+  const CAT_COLOR={events:'#ff9ed4',facts:'#ffd9a0',insights:'#b9a0ff',tasks:'#9ce8c8'};
+  d.nodes.forEach((n,i)=>{
+    const em=Math.floor(new Date((n.created_at||'').replace(' ','T')).getTime()/60000);
+    const tt=Math.min(1,Math.max(0,(em-t0)/span));
+    const r=0.15+Math.pow(tt,0.85)*GAL_R*0.96;
+    const branch=(i%BRANCHES)/BRANCHES*Math.PI*2, spin=r*SPIN;
+    const x=Math.cos(branch+spin)*r+rand(-0.3,0.3), z=Math.sin(branch+spin)*r+rand(-0.3,0.3);
+    const y=rand(0.25,0.6)*(Math.random()<.5?1:-1);
+    pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z;
+    const cc=C(CAT_COLOR[n.category]||'#ffe9c9');
+    col[i*3]=cc[0];col[i*3+1]=cc[1];col[i*3+2]=cc[2];
+    sz[i]=0.42; ph[i]=Math.random()*6.28;
+    memNodes.push({id:n.id,label:n.label,cat:n.category,imp:n.importance,created:n.created_at,x,y,z});
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  memCloud=new THREE.Points(g,new THREE.PointsMaterial({
+    map:crossTexture(),size:0.11,vertexColors:true,transparent:true,opacity:0.72,
+    depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));
+  scene3.add(memCloud);
+  window.__memN=memNodes.length;
+}
+buildMemStars();
+
+window.gxClearEdges=()=>{
+  controls.autoRotate=true;
+  if(edgeGroup){scene3.remove(edgeGroup);edgeGroup.traverse(o=>{o.geometry&&o.geometry.dispose()});edgeGroup=null;}
+  if(memHi){scene3.remove(memHi);memHi.geometry.dispose();memHi=null;}
+};
+
+window.__showMemStar=i=>showMemStar(i);
+async function showMemStar(idx){
+  controls.autoRotate=false;
+  const n=memNodes[idx];
+  gxClearEdges();
+  // 卡片
+  const card=document.getElementById('memcard');
+  card.style.display='block';
+  document.getElementById('mc-meta').textContent=`记忆 #${n.id} · ${(n.created||'').slice(0,10)} · ${n.cat} · 重要度 ${n.imp}`;
+  document.getElementById('mc-body').textContent='…';
+  document.getElementById('mc-edges').innerHTML='';
+  const [full,eg]=await Promise.all([
+    fetch(`${API}/mem/list?limit=500`).then(r=>r.json()),
+    fetch(`${API}/mem/edges?id=${n.id}`).then(r=>r.json())]);
+  const m=(full.memories||[]).find(x=>x.id===n.id);
+  document.getElementById('mc-body').textContent=m?m.content:n.label;
+  // 画星座线
+  const edges=eg.edges||[];
+  if(edges.length){
+    edgeGroup=new THREE.Group();
+    const lm=new THREE.LineBasicMaterial({color:0xffb8d8,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending});
+    const hiPos=[];
+    let html=`连着 ${edges.length} 条边：<br>`;
+    for(const e of edges){
+      const oid=e.source_id===n.id?e.target_id:e.source_id;
+      const on=memNodes.find(x=>x.id===oid);
+      html+=`<span class="lk" data-oid="${oid}">↳ ${esc(e.relation)}</span> · ${esc(e.context)}<br>`;
+      if(!on)continue;
+      const lg=new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(n.x,n.y,n.z), new THREE.Vector3(on.x,on.y,on.z)]);
+      edgeGroup.add(new THREE.Line(lg,lm));
+      hiPos.push(on.x,on.y,on.z);
+    }
+    hiPos.push(n.x,n.y,n.z);
+    const hg=new THREE.BufferGeometry();
+    hg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(hiPos),3));
+    memHi=new THREE.Points(hg,new THREE.PointsMaterial({
+      map:crossTexture(),size:0.5,color:0xfff2cf,transparent:true,
+      depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));
+    scene3.add(memHi);
+    edgeGroup.rotation.copy(memCloud.rotation);
+    memHi.rotation.copy(memCloud.rotation);
+    scene3.add(edgeGroup);
+    const box=document.getElementById('mc-edges');
+    box.innerHTML=html;
+    box.querySelectorAll('.lk').forEach(el=>el.onclick=()=>{
+      const i2=memNodes.findIndex(x=>x.id===+el.dataset.oid);
+      if(i2>=0)showMemStar(i2);
+    });
+  }else{
+    document.getElementById('mc-edges').textContent='这颗星还没连线。';
+  }
+}
+
+const dustMat=buildDust();
+buildCoreGlow();
+buildOrbits();
+buildDataGalaxy();
+
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene3,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.6,0.62,0.12);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+function rs(){
+  const w=holder.clientWidth,h=holder.clientHeight;
+  renderer.setSize(w,h,false);
+  composer.setSize(w,h);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+rs();addEventListener('resize',rs);
+
+const clock=new THREE.Clock();
+(function loop(){
+  const t=clock.getElapsedTime();
+  if(starMat)starMat.uniforms.uTime.value=t;
+  dustMat.uniforms.uTime.value=t;
+  if(hitCloud)hitCloud.material.uniforms.uTime.value=t;
+  controls.update();
+  composer.render();
+  requestAnimationFrame(loop);
+})();
+
+const hitsBox=document.getElementById('hits');
+function showHitStars(idxs){
+  if(hitCloud){scene3.remove(hitCloud);hitCloud.geometry.dispose();hitCloud=null;}
+  if(starMat)starMat.uniforms.uDim.value=idxs.length?0.16:1;
+  if(!idxs.length)return;
+  const posA=starGeo.getAttribute('position');
+  const hp=new Float32Array(idxs.length*3), hc=new Float32Array(idxs.length*3),
+        hs=new Float32Array(idxs.length), hph=new Float32Array(idxs.length);
+  const gold=C('#ffd9a0');
+  idxs.forEach((i,k)=>{
+    hp[k*3]=posA.getX(i);hp[k*3+1]=posA.getY(i);hp[k*3+2]=posA.getZ(i);
+    hc[k*3]=gold[0];hc[k*3+1]=gold[1];hc[k*3+2]=gold[2];
+    hs[k]=7.5; hph[k]=Math.random()*6.28;
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(hp,3));
+  g.setAttribute('aColor',new THREE.BufferAttribute(hc,3));
+  g.setAttribute('aSize',new THREE.BufferAttribute(hs,1));
+  g.setAttribute('aPhase',new THREE.BufferAttribute(hph,1));
+  hitCloud=new THREE.Points(g,particleMat(1.4));
+  scene3.add(hitCloud);
+}
+
+document.getElementById('gq').addEventListener('keydown',async e=>{
+  if(e.key!=='Enter')return;
+  const q=e.target.value.trim();
+  if(!q){clearHits();return}
+  hitsBox.style.display='block';
+  hitsBox.innerHTML='<div class="h-head">检索中…</div>';
+  const d=await fetch(`${API}/raw/search?q=${encodeURIComponent(q)}&limit=200`).then(r=>r.json());
+  const hits=d.hits||[];
+  const idxs=[];
+  for(const h of hits){
+    const em=Math.floor(new Date(h.ts).getTime()/60000);
+    const a=emIndex.get(em); if(a)idxs.push(...a);
+  }
+  showHitStars(idxs);
+  document.getElementById('gx-clear').style.display='inline';
+  hitsBox.innerHTML=`<div class="h-head"><span>命中 ${hits.length} 句 · ${idxs.length} 颗星亮成金色</span><span class="fold" onclick="this.closest('#hits').style.display='none'">收起 ▲</span></div>`+
+    hits.map(h=>`<div class="h-item" data-ts="${esc(h.ts)}">
+      <div class="m"><span class="${h.role==='user'?'u':'a'}">${h.role==='user'?'HUMAN':'AGENT'}</span> · ${(h.ts||'').slice(0,16).replace('T',' ')}</div>
+      <div class="t">${esc(h.text).replaceAll(esc(q),`<mark>${esc(q)}</mark>`)}</div></div>`).join('');
+  hitsBox.querySelectorAll('.h-item').forEach(el=>el.onclick=()=>showScene(el.dataset.ts));
+});
+document.getElementById('gx-clear').onclick=clearHits;
+function clearHits(){
+  document.getElementById('gq').value='';
+  hitsBox.style.display='none';hitsBox.innerHTML='';
+  document.getElementById('gx-clear').style.display='none';
+  showHitStars([]);
+}
+
+const ray=new THREE.Raycaster();ray.params.Points={threshold:0.05};
+const ndc=new THREE.Vector2();
+let downXY=null;
+canvas.addEventListener('pointerdown',e=>{downXY=[e.clientX,e.clientY]});
+canvas.addEventListener('pointerup',async e=>{
+  if(!downXY||!starsReady)return;
+  const dx=e.clientX-downXY[0],dy=e.clientY-downXY[1];
+  downXY=null;
+  if(dx*dx+dy*dy>25)return;
+  const r=canvas.getBoundingClientRect();
+  ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(ndc,camera);
+  if(memCloud){
+    ray.params.Points={threshold:0.14};
+    const mi=ray.intersectObject(memCloud,false);
+    if(mi.length){showMemStar(mi[0].index);return}
+  }
+  ray.params.Points={threshold:0.05};
+  const inter=ray.intersectObject(starCloud,false);
+  if(!inter.length)return;
+  const em=stars[inter[0].index][0];
+  const d=await fetch(`${API}/raw/at?em=${em}`).then(r=>r.json());
+  if(d.rows&&d.rows.length)showScene(d.rows[0].ts);
+});
+
+document.getElementById('search-submit')?.addEventListener('click',()=>{
+  document.getElementById('gq').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));
+});
+</script><div class="site-foot"><span>✦ STORE THE LITTLE THINGS</span><span>让记忆有迹可循。 / MEMORY ARCHIVE</span></div>
+</body>
+</html>
