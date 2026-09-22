@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Archive Room · thin read-only API
 只读两个库：context.db（原文层）+ memory.db（记忆层/边）。
-不动 Elektron 本体代码。端口 8021，仅监听 127.0.0.1，由 nginx 挂到家门禁内。
+不动记忆层本体代码。端口 8021（PORT 可改），仅监听 127.0.0.1；对外请自行加反代与鉴权。
 """
 import json, sqlite3, re
 from http.server import HTTPServer, BaseHTTPRequestHandler
