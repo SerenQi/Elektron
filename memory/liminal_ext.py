@@ -1,12 +1,26 @@
 # 扩展层：人格层（Identity）+ 线索层（Threads）+ 诚实回执（Audit）
 # Identity layer extensions (multi-round self-review protocol)
 # 设计原则：说过≠成为；候选需≥2轮隔天审核+反证；写入必有回执；线索跟踪到闭环。
-import os, re, json, uuid, hashlib, datetime
+import os, re, json, uuid, hashlib, datetime, asyncio, time
+
+
+def _speaker(role: str) -> str:
+    """原文层里 role 不止 user/assistant，还有 thinking、summary。
+    以前把所有非 user 的都署名成"我"，等于把内部思考和摘要
+    当成正式说过的话端出来。保留真实来源。"""
+    r = (role or "").strip().lower()
+    if r == "user":
+        return "她"
+    if r == "thinking":
+        return "我(想)"
+    if r in ("summary", "digest"):
+        return "摘要"
+    return "我"
 
 def _now():
     return datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
-def register(mcp, buckets_dir):
+def register(mcp, buckets_dir, bucket_manager=None):
     IDENT = os.path.join(buckets_dir, 'identity')
     CAND = os.path.join(IDENT, 'candidates')
     COMM = os.path.join(IDENT, 'committed')
@@ -212,11 +226,41 @@ def register(mcp, buckets_dir):
         return _sq.connect(CONTEXT_DB)
 
     def ctx_search(q, limit=8):
+        # 原文检索也走 trigram 索引。旧 raw 表默认分词把整句中文当一个词，
+        # 嵌在句子中间的词就搜不到。
+        # 空格分开的每个词都得命中；<3 字的词 trigram MATCH 不了，改走 LIKE。
+        # trigram 没结果时回退旧表，保留 OR/NEAR 等原生 FTS 语法的用法。
         try:
             c = _ctx_conn()
-            rows = c.execute(
-                "SELECT ts, source, role, snippet(raw, 3, '[', ']', '…', 40) FROM raw WHERE raw MATCH ? ORDER BY rank LIMIT ?",
-                (q, limit)).fetchall()
+            rows = []
+            terms = [t.strip('"') for t in (q or '').split() if t.strip('"')]
+            if any(t in ('OR', 'AND', 'NOT') or t.startswith('NEAR(') for t in terms):
+                try:  # 原生 FTS 语法直接交给 trigram 表
+                    rows = c.execute(
+                        "SELECT ts, source, role, snippet(raw_tri, 3, '[', ']', '…', 40) FROM raw_tri WHERE raw_tri MATCH ? ORDER BY rank LIMIT ?",
+                        (q, limit)).fetchall()
+                except Exception:
+                    rows = []
+                terms = []
+            if terms:
+                try:
+                    long_t = [t for t in terms if len(t) >= 3]
+                    short_t = [t for t in terms if len(t) < 3]
+                    if long_t:
+                        sql = ("SELECT ts, source, role, snippet(raw_tri, 3, '[', ']', '…', 40) FROM raw_tri "
+                               "WHERE raw_tri MATCH ?" + " AND text LIKE ?" * len(short_t) + " ORDER BY rank LIMIT ?")
+                        args = [' AND '.join('"' + t.replace('"', '') + '"' for t in long_t)]
+                    else:
+                        sql = ("SELECT ts, source, role, substr(text, 1, 240) FROM raw_tri WHERE "
+                               + ' AND '.join(['text LIKE ?'] * len(short_t)) + " ORDER BY rowid DESC LIMIT ?")
+                        args = []
+                    rows = c.execute(sql, args + ['%' + t + '%' for t in short_t] + [limit]).fetchall()
+                except Exception:
+                    rows = []
+            if not rows:
+                rows = c.execute(
+                    "SELECT ts, source, role, snippet(raw, 3, '[', ']', '…', 40) FROM raw WHERE raw MATCH ? ORDER BY rank LIMIT ?",
+                    (q, limit)).fetchall()
             c.close()
             return rows
         except Exception as e:
@@ -233,7 +277,7 @@ def register(mcp, buckets_dir):
             rows = rows[::-1]
             out, used = [], 0
             for ts, role, text in rows:
-                seg = f"[{ts[11:16]}] {'她' if role=='user' else '我'}: {text[:200]}"
+                seg = f"[{ts[11:16]}] {_speaker(role)}: {text[:200]}"
                 if used + len(seg) > max_chars:
                     break
                 out.append(seg)
@@ -277,14 +321,34 @@ def register(mcp, buckets_dir):
     def do_magnet(user_text, budget=1200, k=8):
         import math
         today = _now()[:10]
+        c = None
         try:
             c = _ctx_conn()
+            deadline = time.monotonic() + 0.45
+            c.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
             hits = {}
             for w in _windows(user_text):
+                if time.monotonic() > deadline:
+                    break
                 try:
-                    rows = c.execute(
-                        'SELECT rowid, ts, role, text FROM raw WHERE raw MATCH ? AND ts < ? ORDER BY rank LIMIT 6',
-                        ('"' + w + '"', today)).fetchall()
+                    # 优先走 trigram 索引。默认分词器对中文按整块切，
+                    # 三个字的词嵌在长句里就匹配不上（实测一个词 31 条原文只搜出 9 条）。
+                    # trigram 三字一切，中文子串才真的搜得全。没有该表时回退旧路。
+                    try:
+                        if len(w) < 3:
+                            # FTS trigram MATCH cannot match one/two-character
+                            # terms. LIKE is a deliberate short-word path.
+                            rows = c.execute(
+                                'SELECT rowid, ts, role, text FROM raw_tri WHERE text LIKE ? AND ts < ? ORDER BY rowid DESC LIMIT 6',
+                                ('%' + w + '%', today)).fetchall()
+                        else:
+                            rows = c.execute(
+                                'SELECT rowid, ts, role, text FROM raw_tri WHERE raw_tri MATCH ? AND ts < ? ORDER BY rank LIMIT 6',
+                                ('"' + w + '"', today)).fetchall()
+                    except Exception:
+                        rows = c.execute(
+                            'SELECT rowid, ts, role, text FROM raw WHERE text LIKE ? AND ts < ? ORDER BY rowid DESC LIMIT 6',
+                            ('%' + w + '%', today)).fetchall()
                 except Exception:
                     continue
                 for rid, ts, role, text in rows:
@@ -292,7 +356,6 @@ def register(mcp, buckets_dir):
                         hits[rid][0] += 1
                     else:
                         hits[rid] = [1, ts, role, text]
-            c.close()
             if not hits:
                 return ''
             scored = []
@@ -309,7 +372,7 @@ def register(mcp, buckets_dir):
                 if pfx in seen_pfx:
                     continue
                 seen_pfx.add(pfx)
-                line = f"[{ts[:10]} {'她' if role=='user' else '我'}] {text[:150]}"
+                line = f"[{ts[:10]} {_speaker(role)}] {text[:150]}"
                 if used + len(line) > budget or len(picked) >= k:
                     break
                 picked.append(line); used += len(line)
@@ -318,17 +381,43 @@ def register(mcp, buckets_dir):
             return '[磁铁记忆·聊到相关时自动浮现的旧账，仅供参考，别硬引用]\n' + '\n'.join(picked)
         except Exception:
             return ''
+        finally:
+            if c is not None:
+                c.close()
+
+    async def magnet_block(q, budget=1200):
+        from recall_engine import recall_candidates
+        budget = max(0, min(int(budget), 4000))
+        async def bucket_block():
+            if bucket_manager is None:
+                return ''
+            try:
+                matches = await recall_candidates(bucket_manager, q, limit=2)
+                lines = []
+                for b in matches:
+                    meta = b.get('metadata', {})
+                    excerpt = b.get('content', '').strip().replace('\n', ' ')[:180]
+                    lines.append(f"[记忆桶·{str(meta.get('created', ''))[:10]}] {meta.get('name', b['id'])}: {excerpt}")
+                return '\n'.join(lines)
+            except Exception:
+                return ''
+        raw, buckets = await asyncio.gather(
+            asyncio.to_thread(do_magnet, q, budget), bucket_block())
+        if buckets:
+            buckets = ('[相关记忆桶·仅作旧事参考]\n' + buckets)[:min(budget, 480)]
+            raw = raw[:max(0, budget - len(buckets) - 1)]
+        return '\n'.join(x for x in (raw, buckets) if x)[:budget]
 
     @mcp.tool(name='magnet_recall')
     async def magnet_recall(q: str, budget: int = 1200) -> str:
         """磁铁召回：按文本自动吸出相关原文记忆（预算裁剪，时近衰减）。"""
-        return do_magnet(q, budget) or '无相关记忆'
+        return await magnet_block(q, budget) or '无相关记忆'
 
     @mcp.custom_route('/liminal/magnet', methods=['GET'])
     async def http_magnet(request):
         from starlette.responses import JSONResponse
         q = request.query_params.get('q', '')
-        return JSONResponse({'block': do_magnet(q)})
+        return JSONResponse({'block': await magnet_block(q[:2000])})
 
     # 给 breath 注入用的取数口
     def committed_traits():

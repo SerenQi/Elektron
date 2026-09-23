@@ -57,7 +57,8 @@ import os as _os
 # --- 确保同目录下的模块能被正确导入 ---
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context
+from recall_engine import RecallHistory, recall_candidates
 
 from bucket_manager import BucketManager
 from dehydrator import Dehydrator
@@ -4292,12 +4293,51 @@ async def _merge_or_create(
     返回 (桶ID或名称, 是否合并)。
     """
     try:
-        existing = await bucket_mgr.search(content, limit=1, domain_filter=domain or None)
+        existing = await bucket_mgr.search(content, limit=3, domain_filter=domain or None)
     except Exception as e:
         logger.warning(f"Search for merge failed, creating new / 合并搜索失败，新建: {e}")
         existing = []
 
+    # --- 合并三道闸 / three merge gates ---
+    # 两件不同的事只要共享一堆词，分数过线就会被并成一条。
+    # 相似 ≠ 同一件事：一件事一条，不是相似的挤一条。
+    merge_ok = False
     if existing and existing[0].get("score", 0) > config.get("merge_threshold", 75):
+        top = existing[0]
+        top_meta = top.get("metadata", {})
+        merge_ok = True
+
+        # 闸一 · 名字不同就不合并。
+        # hold 的时候给了 name，就是明说"这是另一件事"——
+        # 这个判断不该被一个词频分数推翻。
+        new_name = (name or "").strip()
+        old_name = (top_meta.get("name") or "").strip()
+        if new_name and old_name and new_name != old_name:
+            merge_ok = False
+            logger.info(f"不合并·名字不同 / no-merge(name): {new_name!r} vs {old_name!r}")
+
+        # 闸二 · 第一名和第二名咬得太紧，说明只是泛泛地像一堆东西，
+        # 不是特别像某一条。这种一律新建。
+        if merge_ok and len(existing) > 1:
+            gap = top.get("score", 0) - existing[1].get("score", 0)
+            if gap < config.get("merge_gap_min", 8):
+                merge_ok = False
+                logger.info(f"不合并·候选咬得太紧 / no-merge(gap={gap:.1f})")
+
+        # 闸三 · 隔太久的两件事，多半不是同一件。分数极高才放行。
+        if merge_ok:
+            try:
+                from datetime import datetime as _dt
+                _la = str(top_meta.get("last_active") or top_meta.get("created") or "")
+                _days = (_dt.now() - _dt.fromisoformat(_la)).total_seconds() / 86400
+                if _days > config.get("merge_max_days", 14) and \
+                        top.get("score", 0) < config.get("merge_threshold_far", 92):
+                    merge_ok = False
+                    logger.info(f"不合并·相隔 {_days:.0f} 天 / no-merge(age)")
+            except (ValueError, TypeError):
+                pass
+
+    if merge_ok:
         bucket = existing[0]
         # --- Never merge into pinned/protected buckets ---
         # --- 不合并到钉选/保护桶 ---
@@ -6072,11 +6112,14 @@ async def trace(query: str, limit: int = 15) -> str:
 # Tool: recall — per-turn contextual memory retrieval
 # 逐轮召回：根据用户消息自动匹配相关记忆
 # =============================================================
-_recall_seen: set[str] = set()
+# 召回去重：以前是一个进程级的 set，永不清理——
+# 一段对话召回过某条，之后所有对话都再也吸不到它，直到进程重启。
+# 按传输会话/显式会话 ID 隔离，半小时过期；refresh 支持明确重问。
+_recall_history = RecallHistory()
 
 @mcp.tool(name="recall")
-async def recall(message: str) -> str:
-    """逐轮召回：把当前用户消息扔进来，返回相关记忆。每轮自动调用，不需要用户提关键词。同session内已召回的不重复返回。"""
+async def recall(message: str, ctx: Context, session_id: str = "", refresh: bool = False) -> str:
+    """逐轮关键词+语义召回。同会话半小时去重；共享连接的新对话可传 session_id，明确重问可用 refresh。"""
     if not (message or "").strip():
         return ""
 
@@ -6084,58 +6127,29 @@ async def recall(message: str) -> str:
     threshold = recall_config.get("confidence_threshold", 55)
     max_results = recall_config.get("max_results", 5)
 
-    import re as _re
-    import jieba
-
-    text = (message or "").strip()
-    seg_terms = [w for w in jieba.cut(text) if len(w.strip()) >= 2]
-    split_terms = [t.strip() for t in _re.split(r"[\s,，、。！？!?.]+", text) if len(t.strip()) >= 2]
-    terms = list(dict.fromkeys(seg_terms + split_terms))
-    if not terms:
-        return ""
-
+    # Keep the actual transport session as the key; don't share a process-wide
+    # suppression set. Stateless callers receive results without suppression.
     try:
-        all_buckets = await bucket_mgr.list_all(include_archive=False)
+        session = ctx.session
+    except (AttributeError, ValueError):
+        session = None
+    if session_id:
+        session = (session, session_id)
+    try:
+        candidates = await recall_candidates(bucket_mgr, message, limit=None, threshold=threshold)
     except Exception as e:
         logger.warning(f"recall: failed to list buckets: {e}")
         return ""
 
-    from rapidfuzz import fuzz
-
-    scored_buckets = []
-    for b in all_buckets:
-        bid = b.get("id", "")
-        if bid in _recall_seen:
-            continue
-        meta = b.get("metadata", {})
-        if meta.get("digested") or meta.get("resolved"):
-            continue
-        haystack = "\n".join([
-            str(meta.get("name", "")),
-            " ".join(str(x) for x in meta.get("domain", []) if x),
-            " ".join(str(x) for x in meta.get("tags", []) if x),
-            strip_wikilinks(b.get("content", "")),
-        ]).lower()
-
-        best_score = 0
-        for term in terms:
-            score = fuzz.partial_ratio(term.lower(), haystack)
-            if score > best_score:
-                best_score = score
-
-        if best_score >= threshold:
-            scored_buckets.append((best_score, b))
-
-    scored_buckets.sort(key=lambda x: x[0], reverse=True)
-    results = scored_buckets[:max_results]
+    results = [b for b in candidates if refresh or not _recall_history.seen(session, b['id'])][:max_results]
 
     if not results:
         return ""
 
     parts = []
-    for score, b in results:
+    for b in results:
         bid = b.get("id", "")
-        _recall_seen.add(bid)
+        _recall_history.mark(session, bid)
         meta = b.get("metadata", {})
         name = meta.get("name", "") or bid
         created = str(meta.get("created", ""))[:10]
@@ -9013,7 +9027,7 @@ async def api_system_status(request):
 # --- Entry point / 启动入口 ---
 # ---- Liminal 扩展挂载（人格层+线索层+回执） ----
 import liminal_ext
-_liminal = liminal_ext.register(mcp, config["buckets_dir"])
+_liminal = liminal_ext.register(mcp, config["buckets_dir"], bucket_manager=bucket_mgr)
 
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")

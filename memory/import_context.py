@@ -4,6 +4,7 @@
 # 增量：state 表记录 (file, lines_done, bytes_done, mtime)，重跑只补新行。
 #   mtime 没变的文件整个跳过，变了的 seek 到上次停的字节，不重读全量。
 import os, json, sqlite3, glob, sys
+from context_index import ensure_index, insert_raw
 
 DB = os.environ.get('CONTEXT_DB', './data/context.db')
 CHAT = os.environ.get('CHAT_LOG', './data/chat-history.jsonl')
@@ -12,6 +13,7 @@ PROJ = os.path.expanduser('~/.claude/projects')
 def db():
     c = sqlite3.connect(DB, timeout=30)
     c.execute('CREATE VIRTUAL TABLE IF NOT EXISTS raw USING fts5(ts, source, role, text)')
+    ensure_index(c)
     c.execute('CREATE TABLE IF NOT EXISTS import_state(file TEXT PRIMARY KEY, lines_done INTEGER)')
     cols = {r[1] for r in c.execute('PRAGMA table_info(import_state)')}
     if 'bytes_done' not in cols:
@@ -60,23 +62,29 @@ def import_chat(c):
     added = 0
     with open(CHAT, encoding='utf-8') as fh:
         n = seek_to(fh, lines0, bytes0)
+        good = fh.tell()      # 偏移只推进到「最后一条完整记录之后」
         while True:
             line = fh.readline()
             if not line:
                 break
+            if not line.endswith("\n"):
+                # 最后一行还没写完（写入方正在追加）。不推进 good，
+                # 下一轮从这一行开头重读——否则这条会被永久跳过。
+                break
             n += 1
+            good = fh.tell()
             try:
                 e = json.loads(line)
             except Exception:
                 continue
             t = clean(e.get('text'))
             if t:
-                c.execute('INSERT INTO raw VALUES(?,?,?,?)', (e.get('ts', ''), 'chat', e.get('role', ''), t))
+                insert_raw(c, e.get('ts', ''), 'chat', e.get('role', ''), t)
                 added += 1
             th = clean(e.get('thinking') or '')
             if th:
-                c.execute('INSERT INTO raw VALUES(?,?,?,?)', (e.get('ts', ''), 'chat', 'thinking', th))
-        offset = fh.tell()
+                insert_raw(c, e.get('ts', ''), 'chat', 'thinking', th)
+        offset = good
     mark(c, CHAT, n, offset, mt)
     return added
 
@@ -95,11 +103,17 @@ def import_transcript(c, fp):
     added = 0
     try:
         n = seek_to(fh, lines0, bytes0)
+        good = fh.tell()      # 偏移只推进到「最后一条完整记录之后」
         while True:
             line = fh.readline()
             if not line:
                 break
+            if not line.endswith("\n"):
+                # 最后一行还没写完（写入方正在追加）。不推进 good，
+                # 下一轮从这一行开头重读——否则这条会被永久跳过。
+                break
             n += 1
+            good = fh.tell()
             try:
                 e = json.loads(line)
             except Exception:
@@ -126,9 +140,9 @@ def import_transcript(c, fp):
             for t in texts:
                 t = clean(t)
                 if t:
-                    c.execute('INSERT INTO raw VALUES(?,?,?,?)', (ts, os.path.basename(fp)[:12], m.get('role', typ), t))
+                    insert_raw(c, ts, os.path.basename(fp)[:12], m.get('role', typ), t)
                     added += 1
-        offset = fh.tell()
+        offset = good
     finally:
         fh.close()
     mark(c, fp, n, offset, mt)

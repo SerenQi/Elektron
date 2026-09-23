@@ -26,6 +26,13 @@ log_level: "INFO"
 # this value (0-100), merge instead of creating a new one
 # 存新记忆时，如果与已有桶的相似度超过此值（0-100），则合并而非新建
 merge_threshold: 75
+# Three extra gates before a merge actually happens / 合并前再过三道闸：
+# 1) a different explicit name never merges / 显式给了不同名字的不合并
+# 2) top-1 must beat top-2 by at least this margin / 第一名要比第二名高出这么多
+merge_gap_min: 8
+# 3) buckets older than N days only merge above the far threshold / 隔太久的只有分数极高才合并
+merge_max_days: 14
+merge_threshold_far: 92
 
 # --- Dehydration API / 脱水压缩 API 配置 ---
 # Uses a cheap LLM for intelligent compression. API is required; if the

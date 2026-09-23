@@ -532,17 +532,23 @@ class BucketManager:
 
         # --- Layer 1.5: embedding pre-filter (optional, reduces multi-dim ranking set) ---
         # --- 第1.5层：embedding 预筛（可选，缩小精排候选集）---
+        # 以前这里是 candidates = emb_candidates —— 直接拿向量结果**替换**候选集。
+        # 后果：关键词明明命中、但还没生成向量的桶会被整批丢掉（向量补全之前，
+        # 大部分桶都没有向量，开了向量召回反而找不到东西）。
+        # 改成并集：两路各自召回，合起来进精排；语义分带进下一层参与排序。
+        vector_sims = {}
         if self.embedding_engine and self.embedding_engine.enabled:
             try:
                 vector_results = await self.embedding_engine.search_similar(query, top_k=50)
                 if vector_results:
-                    vector_ids = {bid for bid, _ in vector_results}
-                    emb_candidates = [b for b in candidates if b["id"] in vector_ids]
-                    if emb_candidates:  # only replace if there's non-empty overlap
-                        candidates = emb_candidates
-                    # else: keep original candidates as fallback
+                    vector_sims = {bid: sim for bid, sim in vector_results}
+                    have = {b["id"] for b in candidates}
+                    extra = [b for b in all_buckets
+                             if b["id"] in vector_sims and b["id"] not in have]
+                    if extra:
+                        candidates = candidates + extra
             except Exception as e:
-                logger.warning(f"Embedding pre-filter failed, using fuzzy only / embedding 预筛失败: {e}")
+                logger.warning(f"Embedding recall failed, keyword only / embedding 召回失败: {e}")
 
         # --- Layer 2: weighted multi-dim ranking ---
         # --- 第二层：多维加权精排 ---
@@ -553,6 +559,12 @@ class BucketManager:
             try:
                 # Dim 1: topic relevance (fuzzy text, 0~1)
                 topic_score = self._calc_topic_score(query, bucket)
+                # 语义相似度参与同一维：字面和意思取较高的那个。
+                # 这样换了说法的同一件事能靠语义追上，
+                # 而字面直接命中的也不会因为没有向量被压下去。
+                _sim = vector_sims.get(bucket["id"])
+                if _sim is not None:
+                    topic_score = max(topic_score, float(_sim))
 
                 # Dim 2: emotion resonance (coordinate distance, 0~1)
                 emotion_score = self._calc_emotion_score(
