@@ -35,5 +35,7 @@ use the continuity mechanisms.
 | `OMBRE_MEMORY_ANALYZER` | `dp` or `cli` memory-analysis path |
 | `OMBRE_QUIET_HOURS` | quiet-hour range used by absence/longing logic |
 | `OMBRE_QUIET_TZ` | timezone for quiet hours | `UTC` |
+| `DREAM_ROOM_URL` | optional: POST each new dream (`{text, by, mode, ts}`) to this URL, e.g. your own dream page |
+| `DREAM_ROOM_BY` | `by` value sent with those dreams (default `agent`) |
 
 Keep values in an untracked `.env` or secret manager.

@@ -6240,6 +6240,76 @@ async def wander_mark(bucket_id: str, mark: str, note: str = "") -> str:
 # 读取最近新增的表层桶（≤10个），返回给 Claude 在提示词引导下自主思考。
 # Claude then decides: resolve some, write feels, or do nothing.
 # =============================================================
+# ---- 梦的两种做法 / two kinds of dreams ----
+# 延伸（extend）：日有所思夜有所梦。拿最近一天半的记忆，挑一样东西顺着往下长——
+#       白天一直待在一起，晚上就梦见一起窝在沙发上看电视。
+# 碰撞（collide）：拿**做过的梦**互相撞，撞出更奇幻的新梦。碰的是梦，不是记忆。
+# 每个梦都进存档 dream_archive.jsonl，碰撞从这里取料。
+DREAM_COLLIDE_EVERY = 3          # 大约每三个梦里一个是碰撞
+DREAM_RECENT_HOURS = 36
+
+
+def _dream_archive_path() -> str:
+    return _bucket_path("dream_archive.jsonl")
+
+
+def _load_dream_archive() -> list[dict]:
+    out = []
+    try:
+        with open(_dream_archive_path(), encoding="utf-8") as f:
+            for line in f:
+                try:
+                    d = _json_lib.loads(line)
+                    if d.get("dream"):
+                        out.append(d)
+                except Exception:
+                    continue
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def _append_dream_archive(entry: dict) -> None:
+    try:
+        with open(_dream_archive_path(), "a", encoding="utf-8") as f:
+            f.write(_json_lib.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.warning("Dream archive append failed: %s", e)
+
+
+def _post_dream_to_room(entry: dict) -> None:
+    """可选：做完的梦 POST 到 DREAM_ROOM_URL（比如自己前端的梦境页）。不设置就什么都不做。
+    body = {text, by, mode, ts}；失败不影响做梦本身。"""
+    if not os.environ.get("DREAM_ROOM_URL"):
+        return
+    import threading, urllib.request
+    def _go():
+        try:
+            bj = (datetime.fromisoformat(entry["ts_iso"]) + timedelta(hours=8)).isoformat(timespec="seconds") + "+08:00"
+            body = _json_lib.dumps({"text": entry["dream"], "by": os.environ.get("DREAM_ROOM_BY", "agent"), "mode": entry.get("mode", ""), "ts": bj},
+                                   ensure_ascii=False).encode()
+            req = urllib.request.Request(os.environ["DREAM_ROOM_URL"],
+                                         data=body, headers={"Content-Type": "application/json"}, method="POST")
+            urllib.request.urlopen(req, timeout=5).read()
+        except Exception as e:
+            logger.warning("Dream room post failed: %s", e)
+    threading.Thread(target=_go, daemon=True).start()
+
+
+def _pick_dream_pair(archive: list[dict]) -> list[dict]:
+    """挑两个不是同一天做的旧梦，尽量隔得远一点。"""
+    def day(d):
+        return str(d.get("ts_iso") or "")[:10]
+    dated = [d for d in archive if day(d)]
+    if len({day(d) for d in dated}) < 2:
+        return []
+    for _ in range(12):
+        a, b = random.sample(dated, 2)
+        if day(a) != day(b) and (abs((datetime.fromisoformat(day(a)) - datetime.fromisoformat(day(b))).days) >= 5 or _ == 11):
+            return sorted([a, b], key=day)
+    return []
+
+
 async def _refresh_dream_cache(exclude_bucket_ids: set[str] | None = None):
     """生成新的梦境文本并写入缓存(latest_dream.json)，dream()和breath()共用同一份生成逻辑。
     返回(dream_text, parts, recent, all_buckets)；all_buckets为None表示记忆系统不可访问。"""
@@ -6249,80 +6319,91 @@ async def _refresh_dream_cache(exclude_bucket_ids: set[str] | None = None):
         logger.error(f"Dream cache refresh failed to list buckets: {e}")
         return "", [], [], None
 
-    # Dream Veil deliberately reuses the newest memory field even when Breath
-    # surfaced some of the same buckets. A dream is a recomposition of recent
-    # life, not a second diversity sampler.
     candidates = [
         b for b in (_breath_memory_candidates(all_buckets) + _breath_feel_candidates(all_buckets))
     ]
     candidates.sort(key=lambda b: b["metadata"].get("created", ""), reverse=True)
-    recent_pool = candidates[:10]
-    recent_count = min(5, len(recent_pool))
-    recent = random.sample(recent_pool, recent_count) if recent_count else []
 
-    # --- 记忆碰撞：从全库随机抽两条相距很远的记忆，
-    # 混进梦的素材里强行相撞。不做语义匹配——乱点鸳鸯谱才是梦的价值。
-    collide = []
-    try:
-        deep_pool = [b for b in candidates[10:] if b.get("content")]
-        if len(deep_pool) >= 2:
-            collide = random.sample(deep_pool, 2)
-            # 两条若创建时间相距不足 7 天，重抽一次（尽力而为，不强求）
-            def _created(b):
-                return b["metadata"].get("created", "")[:10]
-            if collide[0] and collide[1] and _created(collide[0])[:7] == _created(collide[1])[:7]:
-                retry = random.sample(deep_pool, 2)
-                if retry[0]["metadata"].get("created", "")[:7] != retry[1]["metadata"].get("created", "")[:7]:
-                    collide = retry
-            recent = collide + recent[:3]  # 碰撞对置顶 + 近期3条打底
-    except Exception as e:
-        logger.warning("Dream collide sampling failed: %s", e)
+    archive = _load_dream_archive()
+    pair = _pick_dream_pair(archive) if random.randrange(DREAM_COLLIDE_EVERY) == 0 else []
+    mode = "collide" if pair else "extend"
+
+    if mode == "collide":
+        # 旧梦包成桶的样子，调用方（api/dream()）只用 id / metadata / content
+        recent = [{
+            "id": f"dream@{d.get('ts_iso', '')}",
+            "metadata": {"name": f"旧梦 {str(d.get('ts_iso', ''))[:10]}", "created": d.get("ts_iso", "")},
+            "content": d["dream"],
+        } for d in pair]
+        parts = [f"[{r['metadata']['name']}]\n{r['content']}" for r in recent]
+    else:
+        # 延伸：只看最近一天半；太安静的日子就退回最新的几条
+        cutoff = (datetime.now() - timedelta(hours=DREAM_RECENT_HOURS)).isoformat()
+        today_pool = [b for b in candidates if str(b["metadata"].get("created", "")) >= cutoff and b.get("content")]
+        pool = today_pool if today_pool else candidates[:3]
+        recent = random.sample(pool[:12], min(3, len(pool[:12]))) if pool else []
+        recent.sort(key=lambda b: b["metadata"].get("created", ""))
+        parts = []
+        for b in recent:
+            meta = b["metadata"]
+            name = meta.get("name") or ""  # feel桶name为None时不fallback到UUID
+            created = meta.get("created", "")[:16].replace("T", " ")
+            resolved_tag = " ✓" if meta.get("resolved", False) else ""
+            raw_content = strip_wikilinks(b["content"])
+            readable = dehydrator._extract_readable_content(raw_content)
+            header = f"[{created}] {name}{resolved_tag}" if name else f"[{created}]{resolved_tag}"
+            parts.append(f"{header}\n{readable}")
     if not recent:
         return "", [], [], all_buckets
 
-    parts = []
-    for b in recent:
-        meta = b["metadata"]
-        name = meta.get("name") or ""  # feel桶name为None时不fallback到UUID
-        created = meta.get("created", "")[:16].replace("T", " ")
-        resolved_tag = " ✓" if meta.get("resolved", False) else ""
-        raw_content = strip_wikilinks(b["content"])
-        readable = dehydrator._extract_readable_content(raw_content)
-        header = f"[{created}] {name}{resolved_tag}" if name else f"[{created}]{resolved_tag}"
-        parts.append(
-            f"{header}\n"
-            f"{readable}"
-        )
-
-    # --- Optional OpenAI-compatible dream generation ---
     dream_text = ""
     try:
         if dehydrator.api_available and parts:
             fragments = "\n---\n".join(parts)
-            prompt = (
-                "The following are sourced memory fragments. The FIRST TWO come from moments "
-                "far apart in time that never met in waking life — let them collide in the "
-                "dream: objects, places, and gestures from one may appear inside the other. "
-                "Recombine all fragments into a short first-person dream. Be nonlinear and "
-                "image-driven; do not summarize, explain, diagnose, or invent biographical "
-                "facts. Return one paragraph of roughly 120-180 Chinese characters (or a "
-                "similarly compact length in the language of the sources).\n\nMemory fragments:\n" + fragments
-            )
+            if mode == "collide":
+                prompt = (
+                    "Below are two dreams I had on different nights. Let them COLLIDE into one new "
+                    "dream: the people, places, creatures and rules of one spill into the other and "
+                    "set off something neither dream had — stranger, more magical and more playful "
+                    "than either, like a spark. Keep a thread the reader can follow. First person. "
+                    "Do not summarize the old dreams or explain the new one; no software, quota, "
+                    "progress bars or screens. Return one paragraph of 200-300 Chinese characters — "
+                    "never more than 300.\n\nThe two old dreams:\n" + fragments
+                )
+            else:
+                prompt = (
+                    "Below are sourced memory fragments from my last day or so. Write the dream I "
+                    "have tonight — what the day left in my head (日有所思，夜有所梦). First person, "
+                    "one continuous scene the reader can follow.\n"
+                    "Pick ONE concrete thing from the day as the seed (something we did, ate, "
+                    "talked about, made or worried about) and let it carry on into what hasn't "
+                    "happened yet, the way a real dream continues a day — e.g. after a whole day "
+                    "together, the two of us curled up on the sofa watching TV. That is only an "
+                    "example of the feeling: take the seed and the setting from THESE fragments, "
+                    "not from the example, and do not default to cooking or soup. Warm and "
+                    "natural; it may drift a little strange, "
+                    "the way dreams do, but each image follows from the last. Borrow at most one "
+                    "or two small details from the other fragments; do not list or cram memories.\n"
+                    "Do not summarize, explain or moralize, and do not state invented events as "
+                    "waking-life facts. Keep software, quota, progress bars and screens out of the "
+                    "dream. Return one paragraph of 200-300 Chinese characters — never more than "
+                    "300 (or a similar length in the language of the sources).\n\nMemory fragments:\n" + fragments
+                )
             messages = [{"role": "user", "content": prompt}]
             for attempt in range(2):
                 response = await dehydrator.client.chat.completions.create(
                     model=dehydrator.model,
                     messages=messages,
-                    max_tokens=300,
-                    temperature=0.9,
+                    max_tokens=480,
+                    temperature=0.95 if mode == "collide" else 0.85,
                 )
                 dream_text = " ".join((response.choices[0].message.content or "").split())
-                if attempt or len(dream_text) >= 120:
+                if attempt or len(dream_text) >= 200:
                     break
                 messages = [
                     *messages,
                     {"role": "assistant", "content": dream_text},
-                    {"role": "user", "content": "Rewrite once at a fuller 120-180 Chinese characters (or equivalent compact length). Return only one paragraph."},
+                    {"role": "user", "content": "Rewrite once at a fuller 200-300 Chinese characters. Return only one paragraph."},
                 ]
     except Exception as e:
         logger.warning("Dream generation failed: %s", e)
@@ -6330,12 +6411,18 @@ async def _refresh_dream_cache(exclude_bucket_ids: set[str] | None = None):
     if dream_text:
         try:
             import json as _j, time as _t
+            now_ts = _t.time()
+            entry = {
+                "dream": dream_text,
+                "ts": now_ts,
+                "ts_iso": datetime.now().isoformat(timespec="seconds"),
+                "mode": mode,
+                "fragments": [b.get("id") for b in recent],
+            }
             with open(_bucket_path("latest_dream.json"), "w") as _f:
-                _j.dump({
-                    "dream": dream_text,
-                    "ts": _t.time(),
-                    "fragments": [b.get("id") for b in recent],
-                }, _f)
+                _j.dump(entry, _f)
+            _append_dream_archive(entry)
+            _post_dream_to_room(entry)
         except Exception:
             pass
 
